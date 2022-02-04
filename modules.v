@@ -50,18 +50,17 @@ output reg shiftL, en11,en34us,clr11,clr34us
                 else 
                     stateNxt = WAIT0;
             WAIT1:
-                if(clock && hit34us)
-                    stateNxt = WAIT1;
-                else 
-                begin
-                    if (clock==0 && hit11)
-                        stateNxt = WORD_READY;
-                    if (clock==0 && ~hit11)
-                        stateNxt = SAVE_BIT;
-                    else 
-                    stateNxt = WAIT1;
-                end
-                
+                //TODO: E' LEGGERMENTE BUGGATO CON GLI IF DECOMMENTATI, COSI' VA
+                //MANCA DI SICURO UNO STATO TRA WAIT1 E SAVE_BIT, LO AGGIUNGO DOMANI
+                if (clock==0 && hit11)
+                    stateNxt = WORD_READY;
+                /*else if (clock==0 && ~hit11)
+                    stateNxt = SAVE_BIT;*/
+                else if(clock==0)
+                    stateNxt = SAVE_BIT;
+                /*if(hit34us)
+                    stateNxt = WAIT1;*/
+             
            
             default: stateNxt = IDLE;
         
