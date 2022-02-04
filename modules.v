@@ -81,7 +81,7 @@ endmodule
 
 module shReg( 
 input ck,
-input bit,shl, //bit è il dato ricevuto in ingresso dal mouse
+input bit,shl, //bit Ã¨ il dato ricevuto in ingresso dal mouse
 output reg [31:0] data
 );
 
@@ -123,7 +123,7 @@ module cnt34us(
 input ck,clr34us,
 output reg hit34us
 );
-
+    parameter STOP = 20;
     reg [11:0] cnt,cntNxt;
     
     always @(posedge ck,posedge clr34us)
@@ -133,13 +133,13 @@ output reg hit34us
             cnt <= cntNxt;
         
     always @(cnt) 
-        if(cnt < 20) //TODO METTERE 3400 
+        if(cnt < STOP) //TODO METTERE 3400 
             cntNxt = cnt + 1; 
         else 
             cntNxt = 0;
  
     always @(cnt) 
-        if(cnt == 0) 
+        if(cnt == STOP) 
             hit34us = 1; 
         else 
             hit34us = 0; 
