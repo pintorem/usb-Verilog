@@ -1,29 +1,43 @@
 `timescale 1ns / 1ps
 
-module tbUSB;
+module testbench;
+    reg ck, reset;
+    reg clock1, endclock;
+    wire clock;
+    assign clock = clock1 || endclock;
+    reg [10:0]data = 11'b01010110111;
 
-    reg ck,reset;
-    reg clock;
-    reg dataIn = 1;
+    wire currentBit;
+    assign currentBit = data[10];
     
-    always #5 ck = ~ck;
-    always #15 clock = ~clock;
+    wire[10:0] word;
+    wire word_ready;
     
-    wire hit11,hit34us,shiftL, en11,en34us,clr11,clr34us;
-    wire [31:0] data;
-    
-    controllo dut0(ck,reset,clock,hit11,hit34us,shiftL, en11,en34us,clr11,clr34us); 
-    shReg dut1(ck,dataIn,shiftL,data);
-    cnt11 dut2(ck,clr11,en11,hit11);
-    cnt34us dut3(ck,clr34us,hit34us);
-    
+    USBReader dut(ck,reset,currentBit,clock, word_ready, word);
+
     initial
-        begin
-            ck = 0;
-            clock = 0;
-            reset = 0;
-            dataIn = 1;
-            
-            #200000 $stop;
-        end
+    begin
+        reset = 0;
+        clock1 = 1;
+        endclock = 0;
+        #5 reset = 1;
+        #5 reset = 0;
+        ck = 0;
+        #85000 $stop;
+    end
+
+    always
+    begin
+        #3334 clock1 = ~clock1;
+    end
+    
+    always #75000 endclock = 1;
+    
+    always @(negedge clock)
+    #55 data = {data[9:0], 1'bx};
+
+    always
+    #1 ck = ~ck;
+
+
 endmodule
