@@ -260,7 +260,7 @@ else if(shift) savedData = {savedData[8:0],1'bx};
 endmodule
 
 
-module USBsender(input ck, reset, send, input[9:0] dataToSend, inout data, clock, output busy);
+module USBsender(input ck, reset, send, input[9:0] dataToSend, inout data, clock, output busy); //nb busy in uscita potrebbe non essere particolarmente utile, forse un "send ended" o qualcosa del genere sarebbe più appropriato
 wire hit10, hit01ms, en10, shift, clr10, clr01ms, currentdata;
 
 writerSM x0(ck, reset, data, clock, hit10, hit01ms, currentdata, en10, clr10, clr01ms, shift, busy);
