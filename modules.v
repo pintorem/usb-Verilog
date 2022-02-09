@@ -156,7 +156,8 @@ endmodule
 //---------------------------------------------------------------------------------------------------------
 //USB sender: (da debuggare)
 
-module writerSM(input ck, reset, send, inout data, clock, input hit10, hit01ms, input dataout, output reg en10, clr10, clr01ms, shift, busy);
+
+module writerSM(input ck, reset, send, inout data, clock, input hit10, hit01ms, input dataout, output reg en10, clr10, clr01ms, shift, busy, reading_clock);
 
 parameter[3:0] IDLE = 0, CLOCK0 = 1, CLOCK1 = 2, WAIT1 = 3, WAIT0 = 4, HIT10EN = 5, SHIFTDATA = 6, WAITFINAL1 = 7, WAITFINAL0 = 8;
 reg[3:0] currentState, nextState;
@@ -246,6 +247,10 @@ always @(posedge ck, posedge reset)
 if(reset) count <= 0;
 else if(count < 10000) count <= count + 1;
 
+always @(*)
+if(count == 10000) hit = 1;
+else hit = 0;
+
 endmodule
 
 module serializer(input ck, shift, save, input[9:0] dataToSend, output dataout);
@@ -260,10 +265,10 @@ else if(shift) savedData = {savedData[8:0],1'bx};
 endmodule
 
 
-module USBsender(input ck, reset, send, input[9:0] dataToSend, inout data, clock, output busy); //nb busy in uscita potrebbe non essere particolarmente utile, forse un "send ended" o qualcosa del genere sarebbe più appropriato
+module USBSender(input ck, reset, send, input[9:0] dataToSend, inout data, clock, output busy, readingClock); //busy in uscita probabilmente non serve, reading clock serve solo per far funzionare il testbench ma forse serve anche dopo. Se serve lui, servirà anche readdata
 wire hit10, hit01ms, en10, shift, clr10, clr01ms, currentdata;
 
-writerSM x0(ck, reset, data, clock, hit10, hit01ms, currentdata, en10, clr10, clr01ms, shift, busy);
+writerSM x0(ck, reset, send, data, clock, hit10, hit01ms, currentdata, en10, clr10, clr01ms, shift, busy, readingClock);
 counter10 x1(ck, reset || clr10, en10, hit10);
 counter01ms x2(ck, reset || clr01ms, hit01ms);
 serializer x3(ck, shift, send && ~busy, dataToSend, currentdata); //salva quando siamo in idle e viene inviato un nuovo segnale di send
