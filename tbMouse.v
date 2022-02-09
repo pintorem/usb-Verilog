@@ -5,7 +5,7 @@ module tbMouse;
     reg clock1, endclock;
     wire clock;
     assign clock = clock1 || endclock;
-    reg [32:0]data = 11'b01010110111;
+    reg [32:0]data = 33'b010101101110101011011101010110111;
 
     wire currentBit;
     assign currentBit = data[32];
