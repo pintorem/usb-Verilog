@@ -274,3 +274,47 @@ counter01ms x2(ck, reset || clr01ms, hit01ms);
 serializer x3(ck, shift, send && ~busy, dataToSend, currentdata); //salva quando siamo in idle e viene inviato un nuovo segnale di send
 
 endmodule
+//---------------------------------------------------------------------------------------------------------
+//registro che mantiene i 33 bit di mouse, bisogna provare se è utilizzabile anche per salvare i dati della keyboard
+
+/*Questo particolare registro tiene in memoria i dati provenienti dal mouse dato che sono da 33 bit*/
+module register(
+input ck,
+input reset,
+input load,
+input [10:0] data,
+output reg valid,
+output reg [32:0] mouseData
+);
+
+    reg [32:0] mouseDataNxt;
+    reg [1:0] cnt,cntNxt;
+    
+    always @(posedge ck,posedge reset)
+    if(reset) cnt <= 0;
+    else begin
+        cnt <= cntNxt;
+        mouseData <= mouseDataNxt;
+    end
+        
+    always @(mouseData,load,valid)
+    if(load && valid == 0)
+    begin
+        mouseDataNxt = {mouseData[32:0],data};
+        cntNxt = cnt+1;
+    end
+    else 
+    begin
+        mouseDataNxt = mouseData;
+        cntNxt = cnt;
+    end
+ 
+    always @(cnt)
+    if(cnt == 3)
+    begin
+        valid = 1 ;
+        cntNxt = 0;
+    end
+    else valid = 0;
+   
+endmodule
