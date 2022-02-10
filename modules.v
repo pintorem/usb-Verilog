@@ -154,7 +154,7 @@ module USBReader(input ck, reset, dataIn, clock, output word_ready, output[10:0]
 endmodule
 
 //---------------------------------------------------------------------------------------------------------
-//USB sender: (da debuggare)
+//USB writer
 
 
 module writerSM(input ck, reset, send, inout data, clock, input hit10, hit01ms, input dataout, output reg en10, clr10, clr01ms, shift, busy, reading_clock);
