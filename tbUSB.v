@@ -46,7 +46,7 @@ module testbench;
 endmodule
 
 //-------------------------------------------------------------------------
-//Per il sender:
+//Per il sender: (verificato)
 module testbench;
     reg ck, reset;
     reg clock1, endclock;
