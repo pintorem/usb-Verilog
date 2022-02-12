@@ -19,64 +19,64 @@
 // 
 //////////////////////////////////////////////////////////////////////////////////
 
-
 module controllo(
     input ck,reset,
-    input clock,hit11,hit34us, //clock sarebbe il ps2_clk
-    output reg shiftL, en11,en34us,clr11,clr34us, word_ready
+    input clock, data, hit11, hitlim, //clock sarebbe il ps2_clk
+    output reg shiftL, en11,clr11,clrlim, word_ready,
+    output[2:0] curr_state //DEBUG
 );
 
     reg [2:0] state,stateNxt;
-    parameter [2:0] IDLE=0,WORD_READY=1,SAVE_BIT=2,WAIT0=3,WAIT1=4;
-
+    parameter [2:0] IDLE = 0, DELAY = 5, SAVEBIT = 1, CLOCK0 = 2, CLOCK1 = 3, WORDREADY = 4;
+    
+    wire[2:0] status;
+    assign status = {hitlim, hit11,clock};
+    
+    assign curr_state = state; //DEBUG
+    
     always @(posedge ck, posedge reset)
-    if(reset) state<=IDLE;
+    if(reset) state = IDLE;
     else state<=stateNxt;
+    
+    cntlim(ck, reset || clrdel, 130, hitdel);
+    wire hitdel;
+    reg clrdel;
+    
+always @(*)
+case(state)
+IDLE:
+if(~clock && ~data) stateNxt = DELAY;
+else stateNxt = IDLE;
+SAVEBIT: stateNxt = CLOCK0;
+CLOCK0:
+if(clock) stateNxt = CLOCK1;
+else stateNxt = CLOCK0;
+CLOCK1:
+if(hitlim) stateNxt = IDLE;
+else if(hit11) stateNxt = WORDREADY;
+else if(~clock) stateNxt = DELAY;
+else stateNxt = CLOCK1;
+WORDREADY:
+stateNxt = IDLE;
+DELAY:
+if(hitdel) stateNxt = SAVEBIT;
+else stateNxt = DELAY;
+default: stateNxt = IDLE;
+endcase
 
-    always @(state,clock, hit11,hit34us)
+    always @(*)
     case(state)
-        IDLE:
-        if(clock)
-            stateNxt = IDLE;
-        else
-            stateNxt = SAVE_BIT;
-        WORD_READY:
-        if(hit34us) 
-            stateNxt = IDLE;
-        else 
-            stateNxt = SAVE_BIT;
-        SAVE_BIT:
-        stateNxt = WAIT0;
-        WAIT0:
-        if(clock)
-            stateNxt = WAIT1;
-        else
-            stateNxt = WAIT0;
-        WAIT1:
-        if (hit34us)
-            stateNxt = WORD_READY;
-        else if(~clock && hit11)
-            stateNxt = WORD_READY;
-        else if(~clock && ~hit11)
-            stateNxt = SAVE_BIT;
-        else stateNxt = WAIT1;
-        default: stateNxt = IDLE;
-
-    endcase
-
-    always @(state)
-    case(state)
-        IDLE:{shiftL,en11,clr11,clr34us, word_ready}=5'b00110;
-        WORD_READY:{shiftL,en11,clr11,clr34us, word_ready}=5'b00101;
-        SAVE_BIT:{shiftL,en11,clr11,clr34us, word_ready}=5'b11010;
-        WAIT0:{shiftL,en11,clr11,clr34us, word_ready}=5'b00000;
-        WAIT1:{shiftL,en11,clr11,clr34us, word_ready}=5'b00000;
-        default:{shiftL,en11,clr11,clr34us, word_ready}=5'b00010;
+        IDLE:{shiftL,en11,clr11,clrlim, word_ready, clrdel}=6'b001101;
+        SAVEBIT:{shiftL,en11,clr11,clrlim, word_ready, clrdel}=6'b110101;
+        CLOCK0:{shiftL,en11,clr11,clrlim, word_ready, clrdel}=6'b000101;
+        CLOCK1:{shiftL,en11,clr11,clrlim, word_ready, clrdel}=6'b000001;
+        WORDREADY:{shiftL,en11,clr11,clrlim, word_ready, clrdel}=6'b001111;
+        DELAY:{shiftL,en11,clr11,clrlim, word_ready, clrdel} = 6'b000000;
     endcase
 
 endmodule
 
-module shReg(input ck, input bit,shl, /*bit è il dato ricevuto in ingresso dal mouse*/ output reg [10:0] data);
+module shReg(input ck, input bit,shl, output reg [10:0] data);
     reg [10:0] dataNxt;
 
     always @(posedge ck)
@@ -114,42 +114,39 @@ module cnt11(
     else hit11 = 0;
 endmodule
 
-module cnt34us(
-    input ck,clr34us,
-    output reg hit34us
+module cntlim(
+    input ck,clrlim, input[11:0] STOP,
+    output reg hitlim
 );
-    parameter STOP = 3400;
     reg [11:0] cnt,cntNxt;
 
-    always @(posedge ck,posedge clr34us)
-    if(clr34us)
+    always @(posedge ck,posedge clrlim)
+    if(clrlim)
         cnt <= 0;
     else
         cnt <= cntNxt;
 
     always @(cnt)
-    if(cnt < STOP) 
+    if(cnt < STOP) //
         cntNxt = cnt + 1;
     else
         cntNxt = cnt;
 
     always @(cnt)
     if(cnt == STOP)
-        hit34us = 1;
+        hitlim = 1;
     else
-        hit34us = 0;
+        hitlim = 0;
 
 endmodule
 
-module USBReader(input ck, reset, dataIn, clock, output word_ready, output[10:0] data);
-
-    wire hit11,hit34us,shiftL, en11,en34us,clr11,clr34us;
-    wire [10:0] data;
+module USBReader(input ck, reset, dataIn, clock, output word_ready, output[10:0] word, output[2:0] curr_state);
+    wire hit11,hitlim,shiftL, en11, clr11, clrlim;
     
-    controllo dut0(ck,reset,clock,hit11,hit34us,shiftL, en11,en34us,clr11,clr34us, word_ready);
-    shReg dut1(ck,dataIn,shiftL,data);
-    cnt11 dut2(ck,clr11,en11,hit11);
-    cnt34us dut3(ck,clr34us,hit34us);
+    controllo x0(ck,reset,clock, dataIn, hit11,hitlim,shiftL, en11,clr11,clrlim, word_ready, curr_state);
+    shReg x1(ck,dataIn, shiftL, word);
+    cnt11 x2(ck,clr11,en11,hit11);
+    cntlim x3(ck,clrlim, 3700, hitlim);
 
 endmodule
 
