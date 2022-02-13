@@ -154,42 +154,54 @@ endmodule
 //USB writer
 
 
-module writerSM(input ck, reset, send, inout data, clock, input hit10, hit01ms, input dataout, output reg en10, clr10, clr01ms, shift, busy, reading_clock);
+module writerSM(input ck, reset, send, inout data, clock, input hit10, hit01ms, input dataout, output reg en10, clr10, clr01ms, shift, busy, reading_clock, reading_data, output[3:0] state, output assignedClock);
 
-parameter[3:0] IDLE = 0, CLOCK0 = 1, CLOCK1 = 2, WAIT1 = 3, WAIT0 = 4, HIT10EN = 5, SHIFTDATA = 6, WAITFINAL1 = 7, WAITFINAL0 = 8;
+parameter[3:0] IDLE = 0, CLOCK0 = 1, CLOCK1 = 2, WAIT1 = 3, WAIT0 = 4, HIT10EN = 5, SHIFTDATA = 6, WAITFINAL1 = 7, WAITFINAL0 = 8, RTS = 9, DELAY= 10;
 reg[3:0] currentState, nextState;
 
-reg reading_clock, reading_data;
 reg assignedClock;
 
-assign data = reading_data ? 1'bz : dataout;
-assign clock = reading_clock ? 1'bz : assignedClock;
+    assign clock = readingClock ? 1'bz : assignedClock;
+    assign data = readingData ? 1'bz : dataout;
+
+assign state = currentState;
+
+reg clrrts, clrdelay;
+wire hitrts, hitdelay;
+cntlim x0(ck, clrrts, 20, hitrts);
+cntlim x1(ck, clrdelay, 300, hitdelay);
 
 always @(posedge ck, posedge reset)
 if(reset) currentState <= IDLE;
 else currentState <= nextState;
 
-always @(*)
+always @(send, hit01ms, hit10)
 case(currentState)
 IDLE:
 if(send) nextState = CLOCK0;
 else nextState = IDLE;
 CLOCK0:
-if(hit01ms) nextState = CLOCK1;
+if(hit01ms) nextState = RTS;
 else nextState = CLOCK0;
-CLOCK1:
+RTS: //mette data a low e mantiene clock a 0 per un breve periodo di tempo (vedere grafico)
+if(hitrts) nextState = CLOCK1;
+else nextState = RTS;
+CLOCK1: //riporta il clock a 1
 nextState = WAIT1;
-WAIT1:
+WAIT1: //rilascia il clock
 if(clock) nextState = WAIT1;
-else nextState = WAIT0;
+else nextState = DELAY;
+DELAY:
+if(hitdelay) nextState = HIT10EN;
+else nextState = DELAY;
 WAIT0:
 if(~clock) nextState = WAIT0;
-else nextState = HIT10EN;
+else nextState = WAIT1;
 HIT10EN:
 nextState = SHIFTDATA;
 SHIFTDATA:
-if(~hit10) nextState = WAIT1;
-else nextState = WAITFINAL1;
+if(~hit10) nextState = WAIT0;
+else nextState = WAITFINAL0;
 WAITFINAL1:
 if(clock) nextState = WAITFINAL1;
 else nextState = WAITFINAL0;
@@ -199,24 +211,21 @@ else nextState = IDLE;
 default:nextState=IDLE;
 endcase
 
-always @(*)
+always @(send, hit01ms, hit10)
 case(currentState)
-IDLE: {reading_clock, reading_data, assignedClock, en10, clr10, clr01ms, shift} = 7'b11x0110;
-CLOCK0: {reading_clock, reading_data, assignedClock, en10, clr10, clr01ms, shift} = 7'b0000100;
-CLOCK1:{reading_clock, reading_data, assignedClock, en10, clr10, clr01ms, shift} = 7'b0010110;
-WAIT1:{reading_clock, reading_data, assignedClock, en10, clr10, clr01ms, shift} = 7'b10x0010;
-WAIT0:{reading_clock, reading_data, assignedClock, en10, clr10, clr01ms, shift} = 7'b10x0010;
-HIT10EN:{reading_clock, reading_data, assignedClock, en10, clr10, clr01ms, shift} = 7'b10x1010;
-SHIFTDATA: {reading_clock, reading_data, assignedClock, en10, clr10, clr01ms, shift} = 7'b10x0011;
-WAITFINAL1:{reading_clock, reading_data, assignedClock, en10, clr10, clr01ms, shift} = 7'b11x0110;
-WAITFINAL0: {reading_clock, reading_data, assignedClock, en10, clr10, clr01ms, shift} = 7'b11x0110;
-default:{reading_clock, reading_data, assignedClock, en10, clr10, clr01ms, shift} = 7'b11x0110;
+IDLE: {reading_clock, reading_data, assignedClock, en10, clr10, clr01ms, shift, busy, clrrts, clrdelay} = 10'b11x0110011;
+CLOCK0: {reading_clock, reading_data, assignedClock, en10, clr10, clr01ms, shift, busy, clrrts, clrdelay} = 10'b0100100111;
+CLOCK1:{reading_clock, reading_data, assignedClock, en10, clr10, clr01ms, shift, busy, clrrts, clrdelay} = 10'b0010110101;
+WAIT1:{reading_clock, reading_data, assignedClock, en10, clr10, clr01ms, shift, busy, clrrts, clrdelay} = 10'b10x0010101;
+WAIT0:{reading_clock, reading_data, assignedClock, en10, clr10, clr01ms, shift, busy, clrrts, clrdelay} = 10'b10x0010101;
+HIT10EN:{reading_clock, reading_data, assignedClock, en10, clr10, clr01ms, shift, busy, clrrts, clrdelay} = 10'b10x1010101;
+SHIFTDATA: {reading_clock, reading_data, assignedClock, en10, clr10, clr01ms, shift, busy, clrrts, clrdelay} = 10'b10x0011101;
+WAITFINAL1:{reading_clock, reading_data, assignedClock, en10, clr10, clr01ms, shift, busy, clrrts, clrdelay} = 10'b11x0110101;
+WAITFINAL0: {reading_clock, reading_data, assignedClock, en10, clr10, clr01ms, shift, busy, clrrts, clrdelay} = 10'b11x0110101;
+RTS:{reading_clock, reading_data, assignedClock, en10, clr10, clr01ms, shift, busy, clrrts, clrdelay} = 10'b0000110101;
+DELAY:{reading_clock, reading_data, assignedClock, en10, clr10, clr01ms, shift, busy, clrrts, clrdelay} = 10'b10x0010100;
+default:{reading_clock, reading_data, assignedClock, en10, clr10, clr01ms, shift, busy, clrrts, clrdelay} = 10'b11x011001;
 endcase
-
-//questo l'ho aggiunto dopo, funziona uguale
-always @(*)
-if(currentState == IDLE) busy = 0;
-else busy = 1;
 
 endmodule
 
@@ -228,11 +237,11 @@ if(reset) count = 0;
 else count = countNext;
 
 always @(*)
-if(en && count < 10) countNext = count + 1;
+if(en && count < 11) countNext = count + 1;
 else countNext = count;
 
 always @(*)
-if(count == 10) hit = 1;
+if(count == 11) hit = 1;
 else hit = 0;
 
 endmodule
@@ -250,97 +259,29 @@ else hit = 0;
 
 endmodule
 
-module serializer(input ck, shift, save, input[9:0] dataToSend, output dataout);
-reg[9:0] savedData;
+module serializer(input ck, shift, save, input[7:0] dataToSend, output dataout);
+reg[10:0] savedData;
 
-assign dataout = savedData[9];
+assign dataout = savedData[10];
 
 always @(posedge ck)
-if(save) savedData = dataToSend;
-else if(shift) savedData = {savedData[8:0],1'bx};
+if(save) 
+begin
+savedData = {1'b0, dataToSend, ~(^dataToSend), 1'b1}; //costruisce la stringa con gli 11 bit dati gli 8 di informazioni da trasmettere
+end
+else if(shift) savedData = {savedData[9:0],1'bx};
 
 endmodule
 
 
-module USBSender(input ck, reset, send, input[9:0] dataToSend, inout data, clock, output busy, readingClock); //busy in uscita probabilmente non serve, reading clock serve solo per far funzionare il testbench ma forse serve anche dopo. Se serve lui, servirà anche readdata
+module USBSender(input ck, reset, send, input[7:0] dataToSend, inout data, clock, output busy, readingClock, readingData, output[3:0] currentState, output assignedClock, currentdata); //busy in uscita probabilmente non serve, reading clock serve solo per far funzionare il testbench ma forse serve anche dopo. Se serve lui, servirà anche readdata
 wire hit10, hit01ms, en10, shift, clr10, clr01ms, currentdata;
 
-writerSM x0(ck, reset, send, data, clock, hit10, hit01ms, currentdata, en10, clr10, clr01ms, shift, busy, readingClock);
+
+
+writerSM x0(ck, reset, send, data, clock, hit10, hit01ms, currentdata, en10, clr10, clr01ms, shift, busy, readingClock, readingData, currentState, assignedClock);
 counter10 x1(ck, reset || clr10, en10, hit10);
 counter01ms x2(ck, reset || clr01ms, hit01ms);
 serializer x3(ck, shift, send && ~busy, dataToSend, currentdata); //salva quando siamo in idle e viene inviato un nuovo segnale di send
 
-endmodule
-//---------------------------------------------------------------------------------------------------------
-//registro che mantiene i 33 bit di mouse, bisogna provare se è utilizzabile anche per salvare i dati della keyboard
-
-/*Questo particolare registro tiene in memoria i dati provenienti dal mouse dato che sono da 33 bit*/
-module register(
-input ck,
-input reset,
-input load,
-input [10:0] data,
-output reg valid,
-output reg [32:0] mouseData
-);
-
-    reg [32:0] mouseDataNxt;
-    reg [1:0] cnt,cntNxt;
-    
-    always @(posedge ck,posedge reset)
-    if(reset) cnt <= 0;
-    else begin
-        cnt <= cntNxt;
-        mouseData <= mouseDataNxt;
-    end
-        
-    always @(mouseData,load,valid)
-    if(load && valid == 0)
-    begin
-        mouseDataNxt = {mouseData[32:0],data};
-        cntNxt = cnt+1;
-    end
-    else 
-    begin
-        mouseDataNxt = mouseData;
-        cntNxt = cnt;
-    end
- 
-    always @(cnt)
-    if(cnt == 3)
-    begin
-        valid = 1 ;
-        cntNxt = 0;
-    end
-    else valid = 0;
-   
-endmodule
-
-/*Keyboard reader senza macchina a stati, testato e funzionante*/
-module keyBoardReader(
-input ps2_clk, 
-input ps2_data, 
-output reg [7:0] dataOut
-);
-
-    reg [3:0] i = 0;
-    reg [10:0] data;
-    reg startBit,stopBit,parity;
-    
-    always @(negedge ps2_clk)
-    begin
-        if(i==0)
-            startBit = ps2_data;
-        else if(i==9)
-            parity = ps2_data;
-        else if(i==10)
-            stopBit = ps2_data;
-        else dataOut[i-1] = ps2_data;
-        
-        if(i<10)
-            i = i+1;
-        else 
-            i = 0;
-    end
-    
 endmodule
