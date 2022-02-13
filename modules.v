@@ -315,3 +315,32 @@ output reg [32:0] mouseData
     else valid = 0;
    
 endmodule
+
+/*Keyboard reader senza macchina a stati, testato e funzionante*/
+module keyBoardReader(
+input ps2_clk, 
+input ps2_data, 
+output reg [7:0] dataOut
+);
+
+    reg [3:0] i = 0;
+    reg [10:0] data;
+    reg startBit,stopBit,parity;
+    
+    always @(negedge ps2_clk)
+    begin
+        if(i==0)
+            startBit = ps2_data;
+        else if(i==9)
+            parity = ps2_data;
+        else if(i==10)
+            stopBit = ps2_data;
+        else dataOut[i-1] = ps2_data;
+        
+        if(i<10)
+            i = i+1;
+        else 
+            i = 0;
+    end
+    
+endmodule
