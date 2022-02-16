@@ -312,3 +312,78 @@ output [7:0] AN
     eightDisplay x0(CK100, 0, refresh,data_curr[3:0],data_curr[7:4],4'bx,4'bx,4'bx,4'bx,4'bx,4'bx,AN,CA,CB,CC,CD,CE,CF,CG);
     //eightDisplay x0(CK100, 0, refresh,dataOut[3:0],dataOut[7:4],4'bx,4'bx,4'bx,4'bx,4'bx,4'bx,AN,CA,CB,CC,CD,CE,CF,CG);
 endmodule
+
+/*TESTBENCH SENDER*/
+`timescale 1ns / 1ns
+
+module tbSenderMarco;
+
+    reg ck,reset,send;
+    
+    tri1 ps2_clk;
+    tri1 ps2_data;
+    reg ps2c;
+    reg ps2d;
+    
+    wire [7:0] data = 8'b10101011;
+    
+    //assign ps2_clk = ps2c;
+    //assign ps2_data = ps2d;
+    
+    assign ps2_clk = ps2c==0 ? 0 : 1'bz;
+    //assign ps2_data = ps2d==0 ? 0 : ps2_data;
+   
+    wire hit01ms,hit7,clr01ms,en7,clr7;
+    
+    writerSM x0(ck, reset, send,ps2_clk,ps2_data, hit01ms, hit7 ,data,clr01ms,en7,clr7);
+    
+    counter7 x1(ck, clr7, en7,hit7);
+
+    counter01ms x2(ck, clr01ms,hit01ms);
+    
+    initial 
+    begin
+        ck=0;
+        reset = 0;
+        send = 0;
+        ps2c = 1;
+        ps2d = 1'bz;
+        
+        #1 reset = 1;
+        #3 reset = 0;
+        #3 send = 1;
+        #3 send = 0;
+        
+        //Simulazione di una generazione di clock generato dalla periferica che vuole ricevere i dati
+        #100000 ps2c = 1;
+        #50000 ps2c = 0;
+        #50000 ps2c = 1;
+        #50000 ps2c = 0;
+        #50000 ps2c = 1;
+        #50000 ps2c = 0;
+        #50000 ps2c = 1;
+        #50000 ps2c = 0;
+        #50000 ps2c = 1;
+        #50000 ps2c = 0;
+        #50000 ps2c = 1;
+        #50000 ps2c = 0;
+        #50000 ps2c = 1;
+        #50000 ps2c = 0;
+        #50000 ps2c = 1;
+        #50000 ps2c = 0;
+        #50000 ps2c = 1;
+        #50000 ps2c = 0;
+        #50000 ps2c = 1;
+        #50000 ps2c = 0;
+        #50000 ps2c = 1;
+        
+        #50000 ps2c = 0; ps2d = 0;//segnale di ack che arriva dalla periferica
+        #50000 ps2c = 1;
+        
+        #85000 $stop;
+    end
+
+    always #1 ck = ~ck;
+    
+    
+endmodule
