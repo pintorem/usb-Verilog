@@ -140,8 +140,10 @@ module cntlim(
 
 endmodule
 
-module USBReader(input ck, reset, dataIn, clock, output word_ready, output[10:0] word, output[2:0] curr_state);
+module USBReader(input ck, reset, dataIn, clock, output word_ready, output[7:0] wordOUT);
     wire hit11,hitlim,shiftL, en11, clr11, clrlim;
+    
+    assign wordOUT = wordp[9:2];
     
     controllo x0(ck,reset,clock, dataIn, hit11,hitlim,shiftL, en11,clr11,clrlim, word_ready, curr_state);
     shReg x1(ck,dataIn, shiftL, word);
