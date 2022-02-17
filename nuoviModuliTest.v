@@ -18,81 +18,6 @@
 // Additional Comments:
 // 
 //////////////////////////////////////////////////////////////////////////////////
-
-/*Bisogna rifare un altro modulo perché sono formattati diversamente i dati della keyboard e del mouse,
-infatti il mouse è così
-la keyboard è così: 
-cambiano le posizioni dei bit e quindi non possiamo fare un singolo reader*/
-/*module mouseReader(
-input ps2_clk, 
-input ps2_data, 
-output reg [7:0] dataOut1,
-output reg [7:0] dataOut2,
-output reg [7:0] dataOut3
-);
-    //TODO: DA TESTARE
-    reg [32:0] data;
-    reg [5:0] i = 0;
-    
-    assign dataOut1 = data[30:23];
-    assign dataOut2 = data[19:12];
-    assign dataOut3 = data[9:2];
-    
-    always @(negedge ps2_clk)
-    begin
-        
-        data[i] = ps2_data;
-     
-        if(i==33)
-        begin
-            dataOut1 = data[30:23];
-            dataOut2 = data[19:12];
-            dataOut3 = data[9:2];
-            i = 0;
-        end
-        else i = i + 1;
-
-    end
-endmodule*/
-
-
-module keyBoardReader(
-input ps2_clk, 
-input ps2_data, 
-input busyWrite,
-output reg [7:0] dataOut,
-output reg busyRead
-);
-
-    reg [3:0] i = 0;
-    reg [10:0] data;
-    reg startBit,stopBit,parity;
-    
-    always @(negedge ps2_clk)
-    begin
-        if(busyWrite == 0)
-        begin
-            if(i==0)
-                startBit = ps2_data;
-            else if(i==9)
-                parity = ps2_data;
-            else if(i==10)
-                stopBit = ps2_data;
-            else dataOut[i-1] = ps2_data;
-            
-            if(i<10)
-            begin
-                i = i+1;
-                busyRead = 1;
-            end
-            else begin
-                i = 0;
-                busyRead = 0;
-            end
-        end
-    end
-    
-endmodule
 module writerSM(
 input ck, reset, send,
 input busyRead,
@@ -102,7 +27,7 @@ input [7:0] data,
 output reg clr01ms,en7,clr7,busyWrite
 );
     
-    parameter[3:0] IDLE = 0, CLKHOST0 = 1, FIRST_BIT = 2, SHIFT = 3,WAIT0 = 4, WAIT1 = 5,ENABLE10 = 6,WAIT_ACK = 7;
+    parameter[3:0] IDLE = 0, FIRST_SHIFT = 1, FIRST_BIT = 2, WAITCLK = 3, SHIFT = 4,WAIT0 = 5, WAIT1 = 6,ENABLE10 = 7,WAIT_ACK = 8;
     reg[3:0] currentState, nextState;
     
     reg ps2c_out;
@@ -128,15 +53,20 @@ output reg clr01ms,en7,clr7,busyWrite
         case(currentState)
         IDLE:
             if(send && busyRead == 0) 
-                nextState = CLKHOST0;
+                nextState = FIRST_SHIFT;
             else nextState = IDLE;
-        CLKHOST0:
-            if(hit01ms) nextState = FIRST_BIT;
-            else nextState = CLKHOST0;
+        FIRST_SHIFT:
+            nextState = FIRST_BIT;
+
         FIRST_BIT:
-            if(ps2c==0)
-                nextState = SHIFT;
+            if(hit01ms)
+                nextState = WAITCLK;
             else nextState = FIRST_BIT;
+            
+        WAITCLK:
+            if(ps2c==1)
+                nextState = WAITCLK;
+            else nextState = SHIFT;
         SHIFT:
             if(hit7 && ps2c==0)
                 nextState = IDLE;
@@ -172,8 +102,9 @@ output reg clr01ms,en7,clr7,busyWrite
     always @(currentState,send,ps2c,ps2d, hit01ms, hit7,load,shift)
     case(currentState)
         IDLE: {clr01ms,ps2c_out,tri_c,tri_d,en7,clr7,load,shift,busyWrite} = 9'b1z0001000;
-        CLKHOST0: {clr01ms,ps2c_out,tri_c,tri_d,en7,clr7,load,shift,busyWrite} =9'b001001101;
-        FIRST_BIT: {clr01ms,ps2c_out,tri_c,tri_d,en7,clr7,load,shift,busyWrite} = 9'b1z0101001;
+        FIRST_SHIFT: {clr01ms,ps2c_out,tri_c,tri_d,en7,clr7,load,shift,busyWrite} =9'b1Z0001001;
+        FIRST_BIT: {clr01ms,ps2c_out,tri_c,tri_d,en7,clr7,load,shift,busyWrite} = 9'b001101001;
+        WAITCLK: {clr01ms,ps2c_out,tri_c,tri_d,en7,clr7,load,shift,busyWrite} = 9'b1Z0101001;
         SHIFT: {clr01ms,ps2c_out,tri_c,tri_d,en7,clr7,load,shift,busyWrite} = 9'b1z0000011; //trid=1 perché devo trasmettere il dato
         WAIT0: {clr01ms,ps2c_out,tri_c,tri_d,en7,clr7,load,shift,busyWrite} = 9'b1z0100001;
         WAIT1: {clr01ms,ps2c_out,tri_c,tri_d,en7,clr7,load,shift,busyWrite} = 9'b1z0100001; // in ps2_dat ci va il dato da trasmettere
@@ -186,6 +117,7 @@ output reg clr01ms,en7,clr7,busyWrite
     assign ps2d = tri_d ? ps2d_out : 1'bz;
 
 endmodule
+
 
 module shifter(                       
 input ck,reset,
@@ -239,7 +171,7 @@ module counter01ms(
 input ck, clr01ms, 
 output reg hit01ms);
 
-    reg [19:0] count,countNext;
+    reg [20:0] count,countNext;
     
     always @(posedge ck, posedge clr01ms)
     if(clr01ms) 
@@ -248,13 +180,13 @@ output reg hit01ms);
         count <= countNext;
     
     always @(count)
-    if(count<49999) 
+    if(count<74999) 
         countNext = count+1;
     else 
         countNext = 0;  
     
     always @(count)
-    if(count == 49999)
+    if(count == 74999)
         hit01ms = 1;
     else 
         hit01ms = 0;
@@ -277,7 +209,6 @@ output busyWrite
     counter01ms z2(ck, clr01ms,hit01ms);
 
 endmodule
-
 
 module top(
 input CK100,
@@ -335,11 +266,14 @@ module tbSenderMarco;
    
     wire hit01ms,hit7,clr01ms,en7,clr7;
     
-    writerSM x0(ck, reset, send,ps2_clk,ps2_data, hit01ms, hit7 ,data,clr01ms,en7,clr7);
+    wire busyRead = 0;
+    /*writerSM x0(ck, reset, send,busyRead,ps2_clk,ps2_data, hit01ms, hit7 ,data,clr01ms,en7,clr7);
     
     counter7 x1(ck, clr7, en7,hit7);
 
-    counter01ms x2(ck, clr01ms,hit01ms);
+    counter01ms x2(ck, clr01ms,hit01ms);*/
+    senderUSB dut(ck,reset,send,ps2_clk,ps2_data,busyRead,data,busyWrite);
+
     
     initial 
     begin
@@ -355,7 +289,7 @@ module tbSenderMarco;
         #3 send = 0;
         
         //Simulazione di una generazione di clock generato dalla periferica che vuole ricevere i dati
-        #100000 ps2c = 1;
+        #150009 ps2c = 1;
         #50000 ps2c = 0;
         #50000 ps2c = 1;
         #50000 ps2c = 0;
