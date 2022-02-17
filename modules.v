@@ -84,7 +84,7 @@ module shReg(input ck, input bit,shl, output reg [10:0] data);
 
     always @(data,bit,shl)
     if(shl)
-        dataNxt = {data[9:0],bit};
+        dataNxt = {bit,data[10:1]};
     else
         dataNxt = data;
 
