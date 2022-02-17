@@ -93,7 +93,6 @@ output reg busyRead
     end
     
 endmodule
-
 module writerSM(
 input ck, reset, send,
 input busyRead,
@@ -139,8 +138,8 @@ output reg clr01ms,en7,clr7,busyWrite
                 nextState = SHIFT;
             else nextState = FIRST_BIT;
         SHIFT:
-            if(hit7)
-                nextState = WAIT_ACK;
+            if(hit7 && ps2c==0)
+                nextState = IDLE;
             else
                 nextState = WAIT0;
         WAIT0:
@@ -265,19 +264,20 @@ endmodule
 module senderUSB(
 input ck,reset,send,
 inout ps2c,ps2d,
-input [7:0] data
+input busyRead,
+input [7:0] dataToSend,
+output busyWrite
 );
 
     wire hit01ms,hit7,clr01ms,en7,clr7;
     
-
-    writerSM x0(ck, reset, send,ps2c,ps2d, hit01ms, hit7 ,data,clr01ms,en7,clr7);
-
-    counter7 x1(ck, clr7, en7,hit7);
-
-    counter01ms x2(ck, clr01ms,hit01ms);
+    //USB SENDER
+    writerSM z0(ck,reset, send,busyRead,ps2c,ps2d, hit01ms, hit7 ,dataToSend,clr01ms,en7,clr7,busyWrite);
+    counter7 z1(ck, clr7, en7,hit7);
+    counter01ms z2(ck, clr01ms,hit01ms);
 
 endmodule
+
 
 module top(
 input CK100,
