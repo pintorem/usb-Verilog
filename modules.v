@@ -6,7 +6,7 @@
 // Create Date: 12.02.2022 15:54:20
 // Design Name: 
 // Module Name: modules
-// Project Name: 
+// Project Name: ps2 protocol
 // Target Devices: 
 // Tool Versions: 
 // Description: 
@@ -426,5 +426,139 @@ output [7:0] AN
 
     //EIGHT DISPLAY
     genRefresh y3(CK100,0,refresh);
-    eightDisplay x0(CK100, 0, refresh,data_curr[3:0],data_curr[7:4],4'bx,4'bx,4'bx,4'bx,4'bx,4'bx,AN,CA,CB,CC,CD,CE,CF,CG);
+    eightDisplay x0(CK100, 0, refresh,data_curr,data_curr,data_curr,data_curr,data_curr,data_curr,data_curr,data_curr,AN,CA,CB,CC,CD,CE,CF,CG);
+endmodule
+
+/*----------------------------------------
+EIGHTDISPLAY MODIFICATO PER LA TASTIERA*/
+module sevenseg(
+    input [7:0] in_seg,
+    output reg CA,CB,CC,CD,CE,CF,CG);
+    
+        always @(in_seg)
+        case (in_seg)
+	
+	   //alfabeto ITALIANO
+        8'h1c:{CA, CB, CC, CD, CE, CF, CG} = 7'b0001000; //a
+        8'h32:{CA, CB, CC, CD, CE, CF, CG} = 7'b1100000; //b
+        8'h21:{CA, CB, CC, CD, CE, CF, CG} = 7'b0110001;  //c
+        8'h23:{CA, CB, CC, CD, CE, CF, CG} = 7'b1000010;  //d
+        8'h24:{CA, CB, CC, CD, CE, CF, CG} = 7'b0110000;  //e
+        8'h2b:{CA, CB, CC, CD, CE, CF, CG} = 7'b0111000; //f
+        8'h34:{CA, CB, CC, CD, CE, CF, CG} = 7'b0100000;  //g
+        8'h33:{CA, CB, CC, CD, CE, CF, CG} = 7'b1001000;  //h
+        8'h43:{CA, CB, CC, CD, CE, CF, CG} = 7'b1111001; //i
+        8'h4b:{CA, CB, CC, CD, CE, CF, CG} = 7'b1110001; //l
+        8'h3a:{CA, CB, CC, CD, CE, CF, CG} = 7'b0011101;  //m 
+        8'h31:{CA, CB, CC, CD, CE, CF, CG} = 7'b1101010;  //n
+        8'h44:{CA, CB, CC, CD, CE, CF, CG} = 7'b1100010;  //o
+       	8'h4d:{CA, CB, CC, CD, CE, CF, CG} = 7'b0011000;  //p
+        8'h15:{CA, CB, CC, CD, CE, CF, CG} = 7'b0001100;  //q 
+        8'h2d :{CA, CB, CC, CD, CE, CF, CG} =7'b1111010; //r
+        8'h1b:{CA, CB, CC, CD, CE, CF, CG} = 7'b0100100; //s come il 5
+       	8'h2c:{CA, CB, CC, CD, CE, CF, CG} = 7'b1110000;  //t
+        8'h3c:{CA, CB, CC, CD, CE, CF, CG} = 7'b1000001;  //u
+        8'h2a :{CA, CB, CC, CD, CE, CF, CG} = 7'b1100011;//v
+
+        8'h1a :{CA, CB, CC, CD, CE, CF, CG} = 7'b0010010;//z come il 2
+        8'h45: {CA, CB, CC, CD, CE, CF, CG} = 7'b0000001; //0
+        8'h16: {CA, CB, CC, CD, CE, CF, CG} = 7'b1001111; //1
+        8'h1e: {CA, CB, CC, CD, CE, CF, CG} = 7'b0010010; //2
+        8'h26: {CA, CB, CC, CD, CE, CF, CG} = 7'b0000110; //3
+        8'h25: {CA, CB, CC, CD, CE, CF, CG} = 7'b1001100; //4 
+        8'h2e: {CA, CB, CC, CD, CE, CF, CG} = 7'b0100100; //5
+        8'h36: {CA, CB, CC, CD, CE, CF, CG} = 7'b0100000; //6
+        8'h3d: {CA, CB, CC, CD, CE, CF, CG} = 7'b0001111; //7
+       	8'h3e: {CA, CB, CC, CD, CE, CF, CG} = 7'b0000000; //8
+        8'h46: {CA, CB, CC, CD, CE, CF, CG} = 7'b0000100; //9 
+        default:{CA, CB, CC, CD, CE, CF, CG} = 7'bxxxxxxx;
+        endcase
+endmodule
+
+module contatore(
+    input ck,reset,refresh,
+    output reg [2:0] q);
+        //cnt = q ingresso attuale,  cnt_nxt = d uscita futura
+        reg[2:0] d;
+        
+        always@(posedge ck,posedge reset) //Descrizione flip flop D
+            if(reset) q <= 0; //solo q dipende da clock e reset
+            else q <= d;
+            
+        always@(q,refresh) //Descrizione R.C.
+            if(refresh) d = q+1;
+            else d = q;
+endmodule
+
+module genRefresh(
+    input ck,reset,
+    output reg refresh);
+    
+    reg [16:0] q,d;
+    
+    always @(posedge ck,posedge reset)
+        if(reset) q <= 0;
+        else q <= d;
+        
+    always @(q) 
+        if(q<99999) d=q+1; //1/1000 secondi per via dell'occhio umano, 100MHZ = 1sec /1000 = 10000
+        else d=0; 
+ 
+    always @(q) 
+        if(q==0) refresh=1; 
+        else refresh=0; 
+endmodule
+
+module decoder(
+    input [2:0] sel, //sel ? un contatore in questo progetto
+    output reg [7:0] an);
+      
+    always @(sel)
+    case (sel)
+    3'd0: an = 8'b11111110;
+    3'd1: an = 8'b11111101;
+    3'd2: an = 8'b11111011;
+    3'd3: an = 8'b11110111;
+    3'd4: an = 8'b11101111;
+    3'd5: an = 8'b11011111;
+    3'd6: an = 8'b10111111;
+    3'd7: an = 8'b01111111;    
+    default: an = 8'bxxxxxxxx;
+    endcase
+endmodule
+
+module multiplexer(
+    input [7:0] in0,in1,in2,in3,in4,in5,in6,in7, 
+    input [2:0] sel,
+    output reg [7:0] in_seg
+);
+
+    always @(sel)
+        case(sel)
+        3'd0: in_seg = in0;
+        3'd1: in_seg = in1;
+        3'd2: in_seg = in2;
+        3'd3: in_seg = in3;
+        3'd4: in_seg = in4;
+        3'd5: in_seg = in5;
+        3'd6: in_seg = in6;
+        3'd7: in_seg = in7;
+        default: in_seg = 4'bxxxx;
+        endcase
+endmodule
+
+module eightDisplay(
+    input ck, reset, refresh,
+    input [7:0] seg0,seg1,seg2,seg3,seg4,seg5,seg6,seg7,
+    output [7:0] an,
+    output CA,CB,CC,CD,CE,CF,CG
+);
+    wire [2:0] sel;
+    wire [7:0] in_seg;
+    
+    contatore x0(ck,reset,refresh,sel);
+    decoder x1(sel,an);
+    multiplexer x2(seg0,seg1,seg2,seg3,seg4,seg5,seg6,seg7,sel,in_seg);
+    sevenseg x3(in_seg,CA,CB,CC,CD,CE,CF,CG);
+      
 endmodule
