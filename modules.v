@@ -395,8 +395,128 @@ endmodule
 *****************
 ***************/
 
+//Macchina a stati che gestice la visualizzazione di più stringhe, con un delay di 5 secondi tra una digitazione e l'altra
+module smForString(
+input ck,reset,
+input word_ready,hit5sec,
+output reg clr5sec
+);
+    
+    reg [2:0] state,stateNxt;
+    parameter [3:0] IDLE=0,SHIFT_DISPLAY=1,ENABLE5SEC=2,WAIT0=3,WAIT1=4,CLEAR_DISPLAY=5;
+    
+    always @(posedge ck,posedge reset)
+        if(reset)
+            state<=0;
+        else 
+            stateNxt = state;
+            
+    always @(state,word_ready,hit5sec)
+    case(state)
+        IDLE:
+            if(word_ready)
+                stateNxt = SHIFT_DISPLAY;
+            else 
+                stateNxt = IDLE;
+        SHIFT_DISPLAY:
+            stateNxt = ENABLE5SEC;
+        ENABLE5SEC:
+            stateNxt = WAIT0;
+        WAIT0:
+            if(word_ready && hit5sec==0)
+                stateNxt = SHIFT_DISPLAY;
+            else if(hit5sec == 1)
+                stateNxt = WAIT1;
+            else stateNxt = WAIT0;
+        WAIT1:
+            if(word_ready)
+                stateNxt = CLEAR_DISPLAY;
+            else 
+                stateNxt = WAIT1;
+        CLEAR_DISPLAY:
+            stateNxt = SHIFT_DISPLAY;
+    endcase
+    
+    always @(state)
+    case(state)
+        IDLE: clr5sec = 1;
+        SHIFT_DISPLAY: clr5sec = 0;
+        ENABLE5SEC: clr5sec = 0;
+        WAIT0: clr5sec = 0;
+        WAIT1: clr5sec = 1;
+        CLEAR_DISPLAY: clr5sec = 0;
+    endcase
 
-//MODULO TOP
+endmodule
+
+//Contatore per contare sino a 5 sec
+module count5sec(
+input ck, clr5sec, 
+output reg hit5sec);
+
+    reg [31:0] count,countNext;
+    
+    always @(posedge ck, posedge clr5sec)
+    if(clr5sec) 
+        count <= 0;
+    else 
+        count <= countNext;
+    
+    always @(count)
+    if(count<499999999) 
+        countNext = count+1;
+    else 
+        countNext = 0;  
+    
+    always @(count)
+    if(count == 499999999)
+        hit5sec = 1;
+    else 
+        hit5sec = 0;
+
+endmodule
+
+
+module shiftDisplay(
+input ck,reset,
+input [7:0] data,
+input wordReady,
+output reg [63:0] string); 
+//string contiene la parole che si compone digitando delle lettere consecutivamente
+    
+    reg [63:0] stringNxt;
+    
+    always @(posedge ck,posedge reset)
+        if (reset)
+            string <= 32'bx;
+        else string <= stringNxt;
+    
+    always @(wordReady)
+        if(wordReady)
+            stringNxt = {stringNxt[63:7],data};  
+endmodule
+
+//riunisce sia il datapath che il controllo della grafica
+module controllerDisplay(
+input ck,reset,
+input word_ready,
+input [7:0] data,
+output [63:0] string
+);
+    wire hit5sec,clr5sec;
+    //controllo
+    smForString sm(ck,reset,word_ready,hit5sec,clr5sec);
+    //datapath
+    count5sec counter5(ck, clr5sec, hit5sec);
+
+    shiftDisplay(ck,reset,data,word_ready,string); 
+    
+endmodule
+
+/*--------------------------
+MODULO TOP------------------
+----------------------------
+*/
 module top(
 input CK100,reset,
 inout PS2_CLK,PS2_DATA,
@@ -423,14 +543,18 @@ output [7:0] AN
     wire sendNb;
     noBounce nob(CK100,reset,send,sendNb);
     senderUSB dut(CK100,reset,sendNb,PS2_CLK,PS2_DATA,1'b0,dataToSend,busyWrite);
-
+    
+    wire [63:0] string;
+    //controller del display (datapath+controllo)
+    controllerDisplay disp(CK100,reset,word_ready,data_curr,string);
     //EIGHT DISPLAY
-    genRefresh y3(CK100,0,refresh);
-    eightDisplay x0(CK100, 0, refresh,data_curr,data_curr,data_curr,data_curr,data_curr,data_curr,data_curr,data_curr,AN,CA,CB,CC,CD,CE,CF,CG);
+    genRefresh y3(CK100,reset,refresh);
+    eightDisplay x0(CK100, reset, refresh,string[7:0],string[15:8],string[23:16],string[31:24],string[39:32],string[47:40],string[55:48],string[63:56],AN,CA,CB,CC,CD,CE,CF,CG);
 endmodule
 
 /*----------------------------------------
-EIGHTDISPLAY MODIFICATO PER LA TASTIERA*/
+EIGHTDISPLAY MODIFICATO PER LA TASTIERA
+---------------------------------------*/
 module sevenseg(
     input [7:0] in_seg,
     output reg CA,CB,CC,CD,CE,CF,CG);
@@ -449,7 +573,7 @@ module sevenseg(
         8'h33:{CA, CB, CC, CD, CE, CF, CG} = 7'b1001000;  //h
         8'h43:{CA, CB, CC, CD, CE, CF, CG} = 7'b1111001; //i
         8'h4b:{CA, CB, CC, CD, CE, CF, CG} = 7'b1110001; //l
-        8'h3a:{CA, CB, CC, CD, CE, CF, CG} = 7'b0011101;  //m 
+        8'h3a:{CA, CB, CC, CD, CE, CF, CG} = 7'b0001001;  //m 
         8'h31:{CA, CB, CC, CD, CE, CF, CG} = 7'b1101010;  //n
         8'h44:{CA, CB, CC, CD, CE, CF, CG} = 7'b1100010;  //o
        	8'h4d:{CA, CB, CC, CD, CE, CF, CG} = 7'b0011000;  //p
